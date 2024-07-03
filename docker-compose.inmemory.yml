@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  ozon-test:
+    build: .
+    environment:
+      - PORT=8080
+      - STORAGE_TYPE=inmemory
+    ports:
+      - "8080:8080"

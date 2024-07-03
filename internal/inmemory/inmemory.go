@@ -111,6 +111,17 @@ func (s *InMemoryStorage) CreateComment(ctx context.Context, comment models.Comm
 	return nil
 }
 
+// GetCommentByID retrieves a comment by its ID
+func (s *InMemoryStorage) GetCommentByID(ctx context.Context, commentID uuid.UUID) (models.Comment, error) {
+	s.commentsMutex.RLock()
+	defer s.commentsMutex.RUnlock()
+
+	comment, exists := s.comments[commentID]
+	if !exists {
+		return models.Comment{}, errors.New("comment not found")
+	}
+	return comment, nil
+}
 func (s *InMemoryStorage) GetCommentsByPostID(ctx context.Context, postID uuid.UUID, page, pageSize int) ([]models.Comment, error) {
 	s.commentsMutex.RLock()
 	defer s.commentsMutex.RUnlock()

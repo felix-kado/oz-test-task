@@ -317,10 +317,12 @@ func TestNestedComments(t *testing.T) {
 	err := storage.CreatePost(context.Background(), post)
 	assert.NoError(t, err, "Error should be nil")
 
+	// Retrieve the created post
 	posts, err := storage.ListPosts(context.Background(), 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	createdPost := posts[0]
 
+	// Create a top-level comment
 	comment1 := models.Comment{
 		PostID:  createdPost.ID,
 		Content: "This is a top-level comment.",
@@ -329,10 +331,12 @@ func TestNestedComments(t *testing.T) {
 	err = storage.CreateComment(context.Background(), comment1)
 	assert.NoError(t, err, "Error should be nil")
 
+	// Retrieve comments to get the top-level comment ID
 	comments, err := storage.GetCommentsByPostID(context.Background(), createdPost.ID, 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	createdComment1 := comments[0]
 
+	// Create a nested comment
 	comment2 := models.Comment{
 		PostID:   createdPost.ID,
 		ParentID: &createdComment1.ID,
@@ -342,6 +346,7 @@ func TestNestedComments(t *testing.T) {
 	err = storage.CreateComment(context.Background(), comment2)
 	assert.NoError(t, err, "Error should be nil")
 
+	// Retrieve comments to check nested structure
 	comments, err = storage.GetCommentsByPostID(context.Background(), createdPost.ID, 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	assert.Len(t, comments, 2, "There should be two comments")
