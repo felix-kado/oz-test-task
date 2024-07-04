@@ -139,6 +139,7 @@ func TestGetCommentsByPostID(t *testing.T) {
 		PostID:  createdPost.ID,
 		Content: "This is a test comment 1.",
 		UserID:  uuid.New(),
+		ID:      uuid.New(),
 	}
 
 	err = storage.CreateComment(context.Background(), comment1)
@@ -148,6 +149,7 @@ func TestGetCommentsByPostID(t *testing.T) {
 		PostID:  createdPost.ID,
 		Content: "This is a test comment 2.",
 		UserID:  uuid.New(),
+		ID:      uuid.New(),
 	}
 
 	err = storage.CreateComment(context.Background(), comment2)
@@ -212,6 +214,7 @@ func TestCreateAndRetrievePostWithComments(t *testing.T) {
 		PostID:  createdPost.ID,
 		Content: "This is the first test comment.",
 		UserID:  uuid.New(),
+		ID:      uuid.New(),
 	}
 	err = storage.CreateComment(context.Background(), comment1)
 	assert.NoError(t, err, "Error should be nil")
@@ -317,12 +320,10 @@ func TestNestedComments(t *testing.T) {
 	err := storage.CreatePost(context.Background(), post)
 	assert.NoError(t, err, "Error should be nil")
 
-	// Retrieve the created post
 	posts, err := storage.ListPosts(context.Background(), 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	createdPost := posts[0]
 
-	// Create a top-level comment
 	comment1 := models.Comment{
 		PostID:  createdPost.ID,
 		Content: "This is a top-level comment.",
@@ -331,12 +332,10 @@ func TestNestedComments(t *testing.T) {
 	err = storage.CreateComment(context.Background(), comment1)
 	assert.NoError(t, err, "Error should be nil")
 
-	// Retrieve comments to get the top-level comment ID
 	comments, err := storage.GetCommentsByPostID(context.Background(), createdPost.ID, 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	createdComment1 := comments[0]
 
-	// Create a nested comment
 	comment2 := models.Comment{
 		PostID:   createdPost.ID,
 		ParentID: &createdComment1.ID,
@@ -346,7 +345,6 @@ func TestNestedComments(t *testing.T) {
 	err = storage.CreateComment(context.Background(), comment2)
 	assert.NoError(t, err, "Error should be nil")
 
-	// Retrieve comments to check nested structure
 	comments, err = storage.GetCommentsByPostID(context.Background(), createdPost.ID, 1, 10)
 	assert.NoError(t, err, "Error should be nil")
 	assert.Len(t, comments, 2, "There should be two comments")
@@ -359,7 +357,6 @@ func TestNestedComments(t *testing.T) {
 func TestInvalidPaginationParameters(t *testing.T) {
 	storage := inmemory.NewInMemoryStorage()
 
-	// Создание постов для тестирования пагинации
 	for i := 0; i < 10; i++ {
 		post := models.Post{
 			Title:         "Test Post",
@@ -397,7 +394,6 @@ func TestInvalidPaginationParameters(t *testing.T) {
 		{page: 1, pageSize: -10},
 	}
 
-	// Создание поста и комментариев для тестирования пагинации
 	post := models.Post{
 		Title:         "Test Post",
 		Content:       "This is a test post.",

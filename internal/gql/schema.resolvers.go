@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slog"
 )
 
 // CreatePost is the resolver for the createPost field.
@@ -20,14 +21,17 @@ func (r *mutationResolver) CreatePost(ctx context.Context, title string, content
 		Title:         title,
 		Content:       content,
 		UserID:        uuid.MustParse(userID),
-		AllowComments: true, // Default value, can be changed later
+		AllowComments: true,
 		CreatedAt:     time.Now(),
 	}
 
 	err := r.Storage.CreatePost(ctx, post)
 	if err != nil {
+		slog.Error("Failed to create post", "error", err)
 		return nil, err
 	}
+
+	slog.Info("Post created", "postID", post.ID)
 
 	return &gqlModel.Post{
 		ID:            post.ID.String(),
@@ -56,11 +60,14 @@ func (r *mutationResolver) CreateComment(ctx context.Context, postID string, par
 
 	err := r.Storage.CreateComment(ctx, comment)
 	if err != nil {
+		slog.Error("Failed to create comment", "error", err)
 		return nil, err
 	}
 
 	// Publish the new comment to subscribers
 	r.PubSub.Publish(ctx, uuid.MustParse(postID), comment.ID.String())
+
+	slog.Info("Comment created", "commentID", comment.ID)
 
 	return &gqlModel.Comment{
 		ID:        comment.ID.String(),
@@ -77,6 +84,7 @@ func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *str
 	postID := uuid.MustParse(id)
 	post, err := r.Storage.GetPostByID(ctx, postID)
 	if err != nil {
+		slog.Error("Failed to get post by ID", "error", err, "postID", postID)
 		return nil, err
 	}
 
@@ -92,8 +100,11 @@ func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *str
 
 	err = r.Storage.UpdatePost(ctx, post)
 	if err != nil {
+		slog.Error("Failed to update post", "error", err, "postID", postID)
 		return nil, err
 	}
+
+	slog.Info("Post updated", "postID", postID)
 
 	return &gqlModel.Post{
 		ID:            post.ID.String(),
@@ -110,6 +121,7 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*gqlModel.Post, er
 	postID := uuid.MustParse(id)
 	post, err := r.Storage.GetPostByID(ctx, postID)
 	if err != nil {
+		slog.Error("Failed to get post by ID", "error", err, "postID", postID)
 		return nil, err
 	}
 
@@ -127,6 +139,7 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*gqlModel.Post, er
 func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*gqlModel.Post, error) {
 	posts, err := r.Storage.ListPosts(ctx, page, pageSize)
 	if err != nil {
+		slog.Error("Failed to list posts", "error", err, "page", page, "pageSize", pageSize)
 		return nil, err
 	}
 
@@ -142,6 +155,8 @@ func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*g
 		})
 	}
 
+	slog.Info("Listed posts", "page", page, "pageSize", pageSize)
+
 	return result, nil
 }
 
@@ -149,6 +164,7 @@ func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*g
 func (r *queryResolver) Comments(ctx context.Context, postID string, page int, pageSize int) ([]*gqlModel.Comment, error) {
 	comments, err := r.Storage.GetCommentsByPostID(ctx, uuid.MustParse(postID), page, pageSize)
 	if err != nil {
+		slog.Error("Failed to get comments by post ID", "error", err, "postID", postID)
 		return nil, err
 	}
 
@@ -169,6 +185,8 @@ func (r *queryResolver) Comments(ctx context.Context, postID string, page int, p
 		})
 	}
 
+	slog.Info("Listed comments for post", "postID", postID, "page", page, "pageSize", pageSize)
+
 	return result, nil
 }
 
@@ -179,6 +197,7 @@ func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) 
 
 	commentsChan, err := r.PubSub.Subscribe(ctx, postUUID)
 	if err != nil {
+		slog.Error("Failed to subscribe to comments", "error", err, "postID", postID)
 		return nil, err
 	}
 
@@ -195,6 +214,7 @@ func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) 
 				commentUUID := uuid.MustParse(commentID)
 				comment, err := r.Storage.GetCommentByID(ctx, commentUUID)
 				if err != nil {
+					slog.Warn("Failed to get comment by ID", "error", err, "commentID", commentUUID)
 					continue
 				}
 
@@ -216,6 +236,8 @@ func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) 
 			}
 		}
 	}()
+
+	slog.Info("Subscribed to comments", "postID", postID)
 
 	return events, nil
 }
