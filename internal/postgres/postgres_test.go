@@ -31,7 +31,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 		WaitingFor: wait.ForAll(
 			wait.ForListeningPort("5432/tcp"),
 			wait.ForLog("database system is ready to accept connections"),
-		).WithStartupTimeout(60 * time.Second),
+		).WithDeadline(60 * time.Second),
 	}
 
 	postgresContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
