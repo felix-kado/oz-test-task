@@ -1,3 +1,4 @@
+// cmd/bin/main.go
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"ozon-test/internal/inmemory"
 	"ozon-test/internal/models"
 	"ozon-test/internal/postgres"
+	"ozon-test/internal/pubsub"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -25,6 +27,7 @@ func main() {
 
 	storageType := os.Getenv("STORAGE_TYPE")
 	var storage models.Storage
+	var pubsub = pubsub.NewInMemoryPubSub()
 
 	if storageType == "postgres" {
 		db, err := sqlx.Connect("postgres", "host="+os.Getenv("DB_HOST")+" port="+os.Getenv("DB_PORT")+" user="+os.Getenv("DB_USER")+" password="+os.Getenv("DB_PASSWORD")+" dbname="+os.Getenv("DB_NAME")+" sslmode=disable")
@@ -36,7 +39,7 @@ func main() {
 		storage = inmemory.NewInMemoryStorage()
 	}
 
-	srv := handler.NewDefaultServer(gql.NewExecutableSchema(gql.Config{Resolvers: &gql.Resolver{Storage: storage}}))
+	srv := handler.NewDefaultServer(gql.NewExecutableSchema(gql.Config{Resolvers: &gql.Resolver{Storage: storage, PubSub: pubsub}}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)

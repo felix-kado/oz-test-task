@@ -41,7 +41,7 @@ type Storage interface {
 	CreateComment(ctx context.Context, comment Comment) error
 	GetCommentsByPostID(ctx context.Context, postID uuid.UUID, page, pageSize int) ([]Comment, error)
 	UpdatePost(ctx context.Context, post Post) error
-	GetCommentByID(ctx context.Context, commentID uuid.UUID) (Comment, error) // Добавлено для внутреннего использования
+	GetCommentByID(ctx context.Context, commentID uuid.UUID) (Comment, error)
 }
 
 var ErrPostNotFound = errors.New("post not found")

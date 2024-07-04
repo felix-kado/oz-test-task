@@ -6,7 +6,7 @@ package gql
 
 import (
 	"context"
-	model1 "ozon-test/internal/gql/model"
+	gqlModel "ozon-test/internal/gql/model"
 	"ozon-test/internal/models"
 	"time"
 
@@ -14,7 +14,7 @@ import (
 )
 
 // CreatePost is the resolver for the createPost field.
-func (r *mutationResolver) CreatePost(ctx context.Context, title string, content string, userID string) (*model1.Post, error) {
+func (r *mutationResolver) CreatePost(ctx context.Context, title string, content string, userID string) (*gqlModel.Post, error) {
 	post := models.Post{
 		ID:            uuid.New(),
 		Title:         title,
@@ -29,7 +29,7 @@ func (r *mutationResolver) CreatePost(ctx context.Context, title string, content
 		return nil, err
 	}
 
-	return &model1.Post{
+	return &gqlModel.Post{
 		ID:            post.ID.String(),
 		Title:         post.Title,
 		Content:       post.Content,
@@ -40,7 +40,7 @@ func (r *mutationResolver) CreatePost(ctx context.Context, title string, content
 }
 
 // CreateComment is the resolver for the createComment field.
-func (r *mutationResolver) CreateComment(ctx context.Context, postID string, parentID *string, content string, userID string) (*model1.Comment, error) {
+func (r *mutationResolver) CreateComment(ctx context.Context, postID string, parentID *string, content string, userID string) (*gqlModel.Comment, error) {
 	comment := models.Comment{
 		ID:        uuid.New(),
 		PostID:    uuid.MustParse(postID),
@@ -59,7 +59,10 @@ func (r *mutationResolver) CreateComment(ctx context.Context, postID string, par
 		return nil, err
 	}
 
-	return &model1.Comment{
+	// Publish the new comment to subscribers
+	r.PubSub.Publish(ctx, uuid.MustParse(postID), comment.ID.String())
+
+	return &gqlModel.Comment{
 		ID:        comment.ID.String(),
 		PostID:    comment.PostID.String(),
 		ParentID:  parentID,
@@ -70,7 +73,7 @@ func (r *mutationResolver) CreateComment(ctx context.Context, postID string, par
 }
 
 // UpdatePost is the resolver for the updatePost field.
-func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *string, content *string, allowComments *bool) (*model1.Post, error) {
+func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *string, content *string, allowComments *bool) (*gqlModel.Post, error) {
 	postID := uuid.MustParse(id)
 	post, err := r.Storage.GetPostByID(ctx, postID)
 	if err != nil {
@@ -92,7 +95,7 @@ func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *str
 		return nil, err
 	}
 
-	return &model1.Post{
+	return &gqlModel.Post{
 		ID:            post.ID.String(),
 		Title:         post.Title,
 		Content:       post.Content,
@@ -103,14 +106,14 @@ func (r *mutationResolver) UpdatePost(ctx context.Context, id string, title *str
 }
 
 // Post is the resolver for the post field.
-func (r *queryResolver) Post(ctx context.Context, id string) (*model1.Post, error) {
+func (r *queryResolver) Post(ctx context.Context, id string) (*gqlModel.Post, error) {
 	postID := uuid.MustParse(id)
 	post, err := r.Storage.GetPostByID(ctx, postID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &model1.Post{
+	return &gqlModel.Post{
 		ID:            post.ID.String(),
 		Title:         post.Title,
 		Content:       post.Content,
@@ -121,15 +124,15 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*model1.Post, erro
 }
 
 // Posts is the resolver for the posts field.
-func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*model1.Post, error) {
+func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*gqlModel.Post, error) {
 	posts, err := r.Storage.ListPosts(ctx, page, pageSize)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []*model1.Post
+	var result []*gqlModel.Post
 	for _, post := range posts {
-		result = append(result, &model1.Post{
+		result = append(result, &gqlModel.Post{
 			ID:            post.ID.String(),
 			Title:         post.Title,
 			Content:       post.Content,
@@ -143,20 +146,20 @@ func (r *queryResolver) Posts(ctx context.Context, page int, pageSize int) ([]*m
 }
 
 // Comments is the resolver for the comments field.
-func (r *queryResolver) Comments(ctx context.Context, postID string, page int, pageSize int) ([]*model1.Comment, error) {
+func (r *queryResolver) Comments(ctx context.Context, postID string, page int, pageSize int) ([]*gqlModel.Comment, error) {
 	comments, err := r.Storage.GetCommentsByPostID(ctx, uuid.MustParse(postID), page, pageSize)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []*model1.Comment
+	var result []*gqlModel.Comment
 	for _, comment := range comments {
 		parentID := ""
 		if comment.ParentID != nil {
 			parentID = comment.ParentID.String()
 		}
 
-		result = append(result, &model1.Comment{
+		result = append(result, &gqlModel.Comment{
 			ID:        comment.ID.String(),
 			PostID:    comment.PostID.String(),
 			ParentID:  &parentID,
@@ -169,11 +172,63 @@ func (r *queryResolver) Comments(ctx context.Context, postID string, page int, p
 	return result, nil
 }
 
+// CommentAdded is the resolver for the commentAdded field.
+func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *gqlModel.Comment, error) {
+	postUUID := uuid.MustParse(postID)
+	events := make(chan *gqlModel.Comment, 1)
+
+	commentsChan, err := r.PubSub.Subscribe(ctx, postUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer close(events)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case commentID, ok := <-commentsChan:
+				if !ok {
+					return
+				}
+				commentUUID := uuid.MustParse(commentID)
+				comment, err := r.Storage.GetCommentByID(ctx, commentUUID)
+				if err != nil {
+					continue
+				}
+
+				events <- &gqlModel.Comment{
+					ID:     comment.ID.String(),
+					PostID: comment.PostID.String(),
+					ParentID: func() *string {
+						if comment.ParentID != nil {
+							id := comment.ParentID.String()
+							return &id
+						} else {
+							return nil
+						}
+					}(),
+					Content:   comment.Content,
+					UserID:    comment.UserID.String(),
+					CreatedAt: comment.CreatedAt.Format(time.RFC3339),
+				}
+			}
+		}
+	}()
+
+	return events, nil
+}
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
