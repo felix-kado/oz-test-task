@@ -53,13 +53,17 @@ func (s *InMemoryStorage) GetPostByID(ctx context.Context, postID uuid.UUID) (mo
 }
 
 func (s *InMemoryStorage) ListPosts(ctx context.Context, page, pageSize int) ([]models.Post, error) {
+	if page <= 0 || pageSize <= 0 {
+		return nil, errors.New("invalid page or pageSize parameter")
+	}
+
 	s.postsMutex.RLock()
 	defer s.postsMutex.RUnlock()
 
 	start := (page - 1) * pageSize
 	end := start + pageSize
 
-	if start > len(s.postOrder) {
+	if start >= len(s.postOrder) {
 		return []models.Post{}, nil
 	}
 	if end > len(s.postOrder) {
@@ -78,7 +82,6 @@ func (s *InMemoryStorage) CreateComment(ctx context.Context, comment models.Comm
 	s.commentsMutex.Lock()
 	defer s.commentsMutex.Unlock()
 
-	comment.ID = uuid.New()
 	comment.CreatedAt = time.Now()
 	s.comments[comment.ID] = comment
 
@@ -122,7 +125,12 @@ func (s *InMemoryStorage) GetCommentByID(ctx context.Context, commentID uuid.UUI
 	}
 	return comment, nil
 }
+
 func (s *InMemoryStorage) GetCommentsByPostID(ctx context.Context, postID uuid.UUID, page, pageSize int) ([]models.Comment, error) {
+	if page <= 0 || pageSize <= 0 {
+		return nil, errors.New("invalid page or pageSize parameter")
+	}
+
 	s.commentsMutex.RLock()
 	defer s.commentsMutex.RUnlock()
 
@@ -134,7 +142,7 @@ func (s *InMemoryStorage) GetCommentsByPostID(ctx context.Context, postID uuid.U
 	start := (page - 1) * pageSize
 	end := start + pageSize
 
-	if start > len(commentIDs) {
+	if start >= len(commentIDs) {
 		return []models.Comment{}, nil
 	}
 	if end > len(commentIDs) {

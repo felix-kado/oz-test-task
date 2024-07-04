@@ -54,7 +54,9 @@ func (s *PostgresStorage) CreateComment(ctx context.Context, comment models.Comm
               VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err = tx.ExecContext(ctx, query, comment.ID, comment.PostID, comment.ParentID, comment.Content, comment.UserID, comment.CreatedAt)
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return rbErr
+		}
 		return err
 	}
 
@@ -63,7 +65,9 @@ func (s *PostgresStorage) CreateComment(ctx context.Context, comment models.Comm
 			 VALUES ($1, $1, $1, 0, $2)`
 		_, err = tx.ExecContext(ctx, query, comment.ID, comment.PostID)
 		if err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return rbErr
+			}
 			return err
 		}
 	} else {
@@ -73,7 +77,9 @@ func (s *PostgresStorage) CreateComment(ctx context.Context, comment models.Comm
 			 WHERE descendant_id = $2`
 		_, err = tx.ExecContext(ctx, query, comment.ID, comment.ParentID)
 		if err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return rbErr
+			}
 			return err
 		}
 	}

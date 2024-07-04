@@ -355,3 +355,75 @@ func TestNestedComments(t *testing.T) {
 	assert.Equal(t, comment2.Content, comments[1].Content, "Nested comment content should match")
 	assert.Equal(t, createdComment1.ID, *comments[1].ParentID, "Nested comment's ParentID should match first comment's ID")
 }
+
+func TestInvalidPaginationParameters(t *testing.T) {
+	storage := inmemory.NewInMemoryStorage()
+
+	// Создание постов для тестирования пагинации
+	for i := 0; i < 10; i++ {
+		post := models.Post{
+			Title:         "Test Post",
+			Content:       "This is test post content.",
+			UserID:        uuid.New(),
+			AllowComments: true,
+		}
+		err := storage.CreatePost(context.Background(), post)
+		assert.NoError(t, err, "Error should be nil")
+	}
+
+	tests := []struct {
+		page     int
+		pageSize int
+	}{
+		{page: 0, pageSize: 10},
+		{page: 1, pageSize: 0},
+		{page: -1, pageSize: 10},
+		{page: 1, pageSize: -10},
+	}
+
+	for _, tc := range tests {
+		posts, err := storage.ListPosts(context.Background(), tc.page, tc.pageSize)
+		assert.Error(t, err, "Error should not be nil for invalid page or pageSize")
+		assert.Nil(t, posts, "Posts should be nil for invalid page or pageSize")
+	}
+
+	commentTests := []struct {
+		page     int
+		pageSize int
+	}{
+		{page: 0, pageSize: 10},
+		{page: 1, pageSize: 0},
+		{page: -1, pageSize: 10},
+		{page: 1, pageSize: -10},
+	}
+
+	// Создание поста и комментариев для тестирования пагинации
+	post := models.Post{
+		Title:         "Test Post",
+		Content:       "This is a test post.",
+		UserID:        uuid.New(),
+		AllowComments: true,
+	}
+	err := storage.CreatePost(context.Background(), post)
+	assert.NoError(t, err, "Error should be nil")
+
+	posts, err := storage.ListPosts(context.Background(), 1, 1)
+	assert.NoError(t, err, "Error should be nil")
+	createdPost := posts[0]
+
+	for i := 0; i < 10; i++ {
+		comment := models.Comment{
+			PostID:  createdPost.ID,
+			Content: "This is test comment content.",
+			UserID:  uuid.New(),
+		}
+		err := storage.CreateComment(context.Background(), comment)
+		assert.NoError(t, err, "Error should be nil")
+	}
+
+	for _, tc := range commentTests {
+		comments, err := storage.GetCommentsByPostID(context.Background(), createdPost.ID, tc.page, tc.pageSize)
+		assert.Error(t, err, "Error should not be nil for invalid page or pageSize")
+		assert.Nil(t, comments, "Comments should be nil for invalid page or pageSize")
+	}
+}

@@ -17,8 +17,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var db *sqlx.DB
-
 func setupTestDB(t *testing.T) *sqlx.DB {
 	ctx := context.Background()
 
@@ -63,6 +61,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 	setupSchema(t, db)
 	return db
 }
+
 func setupSchema(t *testing.T, db *sqlx.DB) {
 	schema := `
     CREATE TABLE posts (
